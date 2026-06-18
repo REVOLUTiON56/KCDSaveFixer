@@ -1,0 +1,31 @@
+# --- .NET build output ---
+bin/
+obj/
+publish/
+out/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+
+# --- Single-file / publish artifacts ---
+*.dll
+*.pdb
+# Keep nothing compiled in the repo; CI produces the binaries.
+*-win-x64.exe
+*-linux-x64
+*-macos-arm64
+
+# --- IDE / editor ---
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
+
+# --- Local test data (don't commit real save files) ---
+*.whs
+*.bin

@@ -1,0 +1,88 @@
+name: Build & Release
+
+# Builds a self-contained single-file binary of KcdSaveFixer for Windows,
+# Linux and macOS.
+#
+# - On every push / PR: builds all targets and uploads them as workflow
+#   artifacts (so you can download and test them).
+# - On pushing a tag like "v1.0.0": also attaches the binaries to a GitHub
+#   Release for that tag.
+#
+# The project file (dotnet/kcdsavefixer.csproj) already enables single-file,
+# self-contained, trimming and compression, so each job only passes -r <RID>.
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:   # allow manual runs from the Actions tab
+
+permissions:
+  contents: write   # needed to create the Release on tag pushes
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            rid: win-x64
+            artifact: kcdsavefixer.exe
+          - name: linux-x64
+            os: ubuntu-latest
+            rid: linux-x64
+            artifact: kcdsavefixer
+          - name: macos-arm64
+            os: macos-latest
+            rid: osx-arm64
+            artifact: kcdsavefixer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish single-file ${{ matrix.rid }}
+        run: >
+          dotnet publish KcdSaveFixer.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          -o publish/${{ matrix.name }}
+
+      # Rename the output to a per-platform name so the three artifacts don't
+      # collide when attached to one Release.
+      - name: Stage binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "publish/${{ matrix.name }}/${{ matrix.artifact }}" "dist/kcdsavefixer-${{ matrix.name }}.exe"
+
+      - name: Stage binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp "publish/${{ matrix.name }}/${{ matrix.artifact }}" "dist/kcdsavefixer-${{ matrix.name }}"
+          chmod +x "dist/kcdsavefixer-${{ matrix.name }}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcdsavefixer-${{ matrix.name }}
+          path: dist/*
+
+      - name: Attach to Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
